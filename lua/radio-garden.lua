@@ -1,6 +1,6 @@
 local M = {}
 
-M.playing = false
+-- M.playing = false
 M.radio_buf = nil
 
 function M.get_pid()
@@ -101,8 +101,6 @@ function M.search_api_and_play(input)
 		confirm = function(picker, item)
 			if item then
 				if M.get_pid() ~= nil then
-					print(M.get_pid())
-					-- M.radio_process:kill("SIGKILL")
 					vim.system({ "kill", M.get_pid() }, { stdin = true })
 				end
 				local radio_process = vim.system({ "mpv", item.stream_url, "--loop-playlist=force" }, { stdin = true })
@@ -141,21 +139,32 @@ function M.setup(opts)
 
 	-- Search Radio Garden API by station name
 	-- Use opts.keymap if provided, otherwise default to '<leader>hw'
-	local keymap = opts.keymap or "<leader>r"
+	-- local keymap = opts.keymap or "<leader>r"
 
 	-- Create the keymap
-	vim.keymap.set("n", keymap, M.search_radio, {
-		desc = "Say hello from our plugin",
+	vim.keymap.set("n", "<leader>rs", M.search_radio, {
+		desc = "Search Radio Garden",
 		silent = true, -- Prevents the command from being echoed in the command line
 	})
 
 	vim.keymap.set("n", "<leader>rp", function()
-		if M.radio_process == nil then
+		if M.get_pid() == nil then
 			vim.notify("No radio is playing", vim.log.levels.WARN)
 			return
 		else
-			M.radio_process:write({ "p" })
+			vim.notify("Radio Paused", vim.log.levels.WARN)
+			vim.system({ "kill", "-SIGSTOP", M.get_pid() }, { stdin = true })
 		end
-	end)
+	end, { desc = "Pause Radio" })
+
+	vim.keymap.set("n", "<leader>rr", function()
+		if M.get_pid() == nil then
+			vim.notify("No radio is playing", vim.log.levels.WARN)
+			return
+		else
+			vim.notify("Radio Resumed", vim.log.levels.WARN)
+			vim.system({ "kill", "-SIGCONT", M.get_pid() }, { stdin = true })
+		end
+	end, { desc = "Pause Radio" })
 end
 return M
