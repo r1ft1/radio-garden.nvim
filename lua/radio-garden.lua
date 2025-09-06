@@ -26,22 +26,28 @@ function Dump(o)
 		return tostring(o)
 	end
 end
+function Mysplit(inputstr, sep)
+	if sep == nil then
+		sep = "%s"
+	end
+	local t = {}
+	for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+		table.insert(t, str)
+	end
+	return t
+end
 
 function M.check_radio_buf()
 	local buf_list = vim.api.nvim_list_bufs()
-	local my_buf = nil
 	for i in ipairs(buf_list) do
-		if vim.api.nvim_buf_get_name(buf_list[i]) == "radio_buf" then
-			my_buf = buf_list[i]
+		local split = Mysplit(vim.api.nvim_buf_get_name(buf_list[i]), "/")
+		if split[#split] == "radio_buf" then
+			M.radio_buf = buf_list[i]
 			return
 		end
 	end
-	if my_buf == nil then
-		M.radio_buf = vim.api.nvim_create_buf(false, true) -- Create a scratch buffer
-		vim.api.nvim_buf_set_name(M.radio_buf, "radio_buf") -- Name the buffer
-	else
-		return
-	end
+	M.radio_buf = vim.api.nvim_create_buf(false, true) -- Create a scratch buffer
+	vim.api.nvim_buf_set_name(M.radio_buf, "radio_buf") -- Name the buffer
 end
 
 function M.search_api_and_play(input)
@@ -141,6 +147,21 @@ function M.setup(opts)
 	-- Use opts.keymap if provided, otherwise default to '<leader>hw'
 	-- local keymap = opts.keymap or "<leader>r"
 
+	vim.keymap.set("n", "<leader>r", function()
+		local Snacks = require("snacks.win")
+		Snacks.win({
+			enter = true,
+			width = 0.6,
+			height = 0.6,
+			wo = {
+				spell = false,
+				wrap = false,
+				signcolumn = "yes",
+				statuscolumn = " ",
+				conceallevel = 3,
+			},
+		})
+	end)
 	-- Create the keymap
 	vim.keymap.set("n", "<leader>rs", M.search_radio, {
 		desc = "Search Radio Garden",
