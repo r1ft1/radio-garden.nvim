@@ -1,10 +1,14 @@
 local M = {}
 
--- M.playing = false
 M.radio_buf = nil
+M.station_name = nil
+M.station_url = nil
+M.station_country = nil
+M.playing = nil
 
 function M.get_pid()
-	local lines = vim.api.nvim_buf_get_lines(M.radio_buf, -2, -1, false)
+	local lines = vim.api.nvim_buf_get_lines(M.radio_buf, 0, 1, false)
+
 	if lines[1] == nil then
 		return nil
 	end
@@ -77,26 +81,8 @@ function M.search_api_and_play(input)
 	--
 	result_handle:close()
 
-	-- vim.api.nvim_buf_set_lines(buffer, -2, -1, false, { json_string })
-	-- vim.api.nvim_open_win(buffer, true, {
-	-- 	relative = "win",
-	-- 	row = 3,
-	-- 	col = 3,
-	-- 	width = 50,
-	-- 	height = 50,
-	-- })
-
-	--
-	-- print(Dump(res))
-	--
-	-- print("You entered: " .. input)
-
 	local lua_json = vim.fn.json_decode(json_string)
-	-- for i, r in pairs(lua_json) do
-	-- 	print(i, r.title, r.stream_url)
-	-- 	-- vim.api.nvim_buf_set_lines(buffer, -1, -1, false, { r.title .. " - " .. r.stream_url })
-	-- end
-	-- --
+
 	local Picker = require("snacks.picker")
 
 	Picker.pick({
@@ -110,7 +96,12 @@ function M.search_api_and_play(input)
 					vim.system({ "kill", M.get_pid() }, { stdin = true })
 				end
 				local radio_process = vim.system({ "mpv", item.stream_url, "--loop-playlist=force" }, { stdin = true })
-				vim.api.nvim_buf_set_lines(M.radio_buf, -2, -1, false, { tostring(radio_process.pid) })
+				vim.api.nvim_buf_set_lines(M.radio_buf, 0, 1, false, { tostring(radio_process.pid) })
+				vim.api.nvim_buf_set_lines(M.radio_buf, 1, 2, false, { item.stream_url })
+				vim.api.nvim_buf_set_lines(M.radio_buf, 2, 3, false, { item.title })
+				vim.api.nvim_buf_set_lines(M.radio_buf, 3, 4, false, { item.country })
+				vim.api.nvim_buf_set_lines(M.radio_buf, 4, 5, false, { "true" })
+				--TODO: write a single line of json and decode that
 
 				vim.notify("Tuning in to " .. item.title .. " - " .. item.stream_url)
 				print(radio_process.pid)
@@ -121,6 +112,8 @@ function M.search_api_and_play(input)
 		end,
 	})
 end
+
+function M.get_info() end
 
 function M.search_radio()
 	local Snacks = require("snacks.input")
@@ -133,24 +126,17 @@ function M.search_radio()
 end
 
 function M.setup(opts)
-	STREAM_URLS = {}
 	-- Merge user options with defaults
 	opts = opts or {}
 
 	M.check_radio_buf()
 	-- Create the user command
-	vim.api.nvim_create_user_command("MPV", function()
-		local stream_url = STREAM_URLS[1]
-	end, {})
-
-	-- Search Radio Garden API by station name
-	-- Use opts.keymap if provided, otherwise default to '<leader>hw'
-	-- local keymap = opts.keymap or "<leader>r"
-
 	vim.keymap.set("n", "<leader>r", function()
-		local Snacks = require("snacks.win")
-		Snacks.win({
-			enter = true,
+		print("r pressed")
+		local Snacks = require("snacks")
+		local win = Snacks.win({
+			text = vim.api.nvim_buf_get_lines(M.radio_buf, 1, 4, false),
+			border = "double",
 			width = 0.6,
 			height = 0.6,
 			wo = {
@@ -160,7 +146,23 @@ function M.setup(opts)
 				statuscolumn = " ",
 				conceallevel = 3,
 			},
+			keys = {
+				b = function(self)
+					local playing = vim.api.nvim_buf_get_lines(M.radio_buf, 4, 5, false)
+					if playing[1] == "true" then
+						vim.notify("Stopping Radio", vim.log.levels.WARN)
+						vim.system({ "kill", "-SIGSTOP", M.get_pid() }, { stdin = true })
+						vim.api.nvim_buf_set_lines(M.radio_buf, 4, 5, false, { "false" })
+					else
+						vim.notify("Radio is not playing", vim.log.levels.WARN)
+						vim.system({ "kill", "-SIGCONT", M.get_pid() }, { stdin = true })
+						vim.api.nvim_buf_set_lines(M.radio_buf, 4, 5, false, { "true" })
+					end
+					self:close()
+				end,
+			},
 		})
+		win:set_title("Radio Garden", "center")
 	end)
 	-- Create the keymap
 	vim.keymap.set("n", "<leader>rs", M.search_radio, {
