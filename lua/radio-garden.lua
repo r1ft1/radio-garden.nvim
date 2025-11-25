@@ -30,6 +30,7 @@ function Dump(o)
 		return tostring(o)
 	end
 end
+
 function Mysplit(inputstr, sep)
 	if sep == nil then
 		sep = "%s"
@@ -55,40 +56,48 @@ function M.check_radio_buf()
 end
 
 function M.search_api_and_play(input)
-	local url = (string.format("'https://radio.garden/api/search/secure?q=%s'", input))
-
-	-- print(url)
-	local curl_cmd = "curl "
+	local url = (string.format("'https://vozymkqyhrenvktrunii.supabase.co/rest/v1/stations?name=ilike.*%s*'", input))
+	local curl_cmd = "curl -s "
 		.. url
-		.. " -A \"Mozilla/5.0 (compatible;  MSIE 7.01; Windows NT 5.0)\" | jq '[.hits.hits[] | ._source | if .stream != null then {title:.title, country:.subtitle, stream_url: .stream} else empty end]'"
+		.. ' -H "apikey: sb_publishable_BpdVJa3Y2tvv4GNxDzcIKQ_Hd0UQV72"'
+		.. ' -H "Content-Type: application/json"'
+		.. ' -H "Accept: application/json"'
+		.. " | jq ."
+
+	-- print(curl_cmd)
+
 	local result_handle = io.popen(curl_cmd)
 	-- local buffer = vim.api.nvim_create_buf(true, false)
-
+	local scratch = vim.api.nvim_create_buf(false, true)
 	-- if radio_buf doesn't exist, create one
-
-	-- print(result_handle)
+	--
 	if result_handle == nil then
+		-- vim.api.nvim_buf_set_lines(scratch, -1, -1, false, { "FAILED" })
 		vim.notify("Error executing search command.", vim.log.levels.ERROR)
 		return
 	end
+
 	local res = {}
 	local json_string = ""
 	for line in result_handle:lines() do
+		-- vim.api.nvim_buf_set_lines(scratch, -1, -1, false, { line })
 		json_string = json_string .. line
 		table.insert(res, line)
 	end
 
+	-- vim.api.nvim_open_win(scratch, true, { relative = "win", row = 30, col = 30, width = 120, height = 30 })
 	--
 	result_handle:close()
-
+	--
 	local lua_json = vim.fn.json_decode(json_string)
-
+	--
+	-- --
 	local Picker = require("snacks.picker")
 
 	Picker.pick({
 		items = lua_json,
 		format = function(item, picker)
-			return { { item.title } }
+			return { { item.name } }
 		end,
 		confirm = function(picker, item)
 			if item then
@@ -98,12 +107,12 @@ function M.search_api_and_play(input)
 				local radio_process = vim.system({ "mpv", item.stream_url, "--loop-playlist=force" }, { stdin = true })
 				vim.api.nvim_buf_set_lines(M.radio_buf, 0, 1, false, { tostring(radio_process.pid) })
 				vim.api.nvim_buf_set_lines(M.radio_buf, 1, 2, false, { item.stream_url })
-				vim.api.nvim_buf_set_lines(M.radio_buf, 2, 3, false, { item.title })
+				vim.api.nvim_buf_set_lines(M.radio_buf, 2, 3, false, { item.name })
 				vim.api.nvim_buf_set_lines(M.radio_buf, 3, 4, false, { item.country })
 				vim.api.nvim_buf_set_lines(M.radio_buf, 4, 5, false, { "true" })
 				--TODO: write a single line of json and decode that
 
-				vim.notify("Tuning in to " .. item.title .. " - " .. item.stream_url)
+				vim.notify("Tuning in to " .. item.name .. " - " .. item.stream_url)
 				print(radio_process.pid)
 			else
 				vim.notify("No item selected", vim.log.levels.WARN)
@@ -156,6 +165,7 @@ function M.setup(opts)
 					else
 						vim.notify("Radio is not playing", vim.log.levels.WARN)
 						vim.system({ "kill", "-SIGCONT", M.get_pid() }, { stdin = true })
+
 						vim.api.nvim_buf_set_lines(M.radio_buf, 4, 5, false, { "true" })
 					end
 					self:close()
